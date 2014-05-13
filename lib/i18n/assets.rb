@@ -1,5 +1,5 @@
 require "i18n/assets/version"
-require "i18n/assets/manifest"
+require "i18n/assets/sprockets"
 
 module I18n
   module Assets
