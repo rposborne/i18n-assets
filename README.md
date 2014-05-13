@@ -1,6 +1,6 @@
-# I18n::Assets
+# I18n assets
 
-TODO: Write a gem description
+Ever wanted to use rails localization helpers inside your assets? Your dream just came true!
 
 ## Installation
 
@@ -18,7 +18,13 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+Just add `.erb` extension to your `.js` and `.css` files and use standard I18n helpers inside your files.
+
+On assets precompilation localized versions of your files will be generated.
+
+## Example
+
+You can check an example usage here: https://github.com/maximgladkov/localized_assets_precompilation_example_app
 
 ## Contributing
 
