@@ -7,13 +7,13 @@ module Sprockets
     module RailsHelper
 
       # add locale to asset_prefix, if assets compiled
-      def asset_prefix
-        if Rails.env.development?
-          Rails.application.config.assets.prefix
-        else
-          "#{ Rails.application.config.assets.prefix }/#{ I18n.locale }"
-        end
-      end
+      # def asset_prefix
+      #   if Rails.env.development?
+      #     Rails.application.config.assets.prefix
+      #   else
+      #     "#{ Rails.application.config.assets.prefix }/#{ I18n.locale }"
+      #   end
+      # end
 
       alias_method :asset_path_without_locale, :asset_path
 
