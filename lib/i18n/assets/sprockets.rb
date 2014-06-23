@@ -86,11 +86,11 @@ module Sprockets
 
     # add locale for css and js files
     def logical_path
-      logical_path = logical_path_without_locale
-      if !Rails.env.development? && logical_path =~ LOCALIZABLE_ASSETS_REGEX
-        "#{ I18n.locale }/#{ logical_path }"
+      path = logical_path_without_locale
+      if !Rails.env.development? && path =~ LOCALIZABLE_ASSETS_REGEX
+        "#{ I18n.locale }/#{ path }"
       else
-        logical_path
+        path
       end
     end
 
