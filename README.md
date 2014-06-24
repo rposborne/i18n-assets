@@ -22,6 +22,8 @@ Just add `.erb` extension to your `.js` and `.css` files and use standard I18n h
 
 On assets precompilation localized versions of your files will be generated.
 
+If you need to prevent `.js.erb` or `.css.erb` files from caching, you can add `config.assets.prevent_caching = true` to the `environments/development.rb` file.
+
 ## Example
 
 You can check an example usage here: https://github.com/maximgladkov/localized_assets_precompilation_example_app

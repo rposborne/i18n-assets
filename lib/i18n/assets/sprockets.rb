@@ -4,6 +4,7 @@ unless defined?(Sprockets::LOCALIZABLE_ASSETS_REGEX)
   module Sprockets
     LOCALIZABLE_ASSETS_EXT = %w( js css )
     LOCALIZABLE_ASSETS_REGEX = Regexp.new("\\.(?:#{ LOCALIZABLE_ASSETS_EXT * '|' })")
+    LOCALIZABLE_COMPILABLE_ASSETS_REGEX = Regexp.new("\\.(?:#{ LOCALIZABLE_ASSETS_EXT * '|' })\\..+$")
 
     module Helpers
       module RailsHelper
@@ -70,6 +71,14 @@ unless defined?(Sprockets::LOCALIZABLE_ASSETS_REGEX)
           path
         end
       end
+
+      protected
+
+        alias_method :dependency_fresh_without_check?, :dependency_fresh?
+        def dependency_fresh?(environment, dep)
+          return false if Rails.configuration.assets.prevent_caching && dep.pathname.to_s =~ LOCALIZABLE_COMPILABLE_ASSETS_REGEX
+          dependency_fresh_without_check?(environment, dep)
+        end
 
     end
 
