@@ -15,7 +15,7 @@ unless defined?(Sprockets::LOCALIZABLE_ASSETS_REGEX)
         def asset_path(source, options = {})
           path = asset_path_without_locale(source, options)
 
-          if path =~ LOCALIZABLE_ASSETS_REGEX
+          if !digest_assets? && path =~ LOCALIZABLE_ASSETS_REGEX
             separator = path =~ /\?/ ? '&' : '?'
             "#{ path }#{ separator }t=#{ Time.now.to_i }"
           else
