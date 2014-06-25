@@ -5,6 +5,7 @@ unless defined?(Sprockets::LOCALIZABLE_ASSETS_REGEX)
     LOCALIZABLE_ASSETS_EXT = %w( js css )
     LOCALIZABLE_ASSETS_REGEX = Regexp.new("\\.(?:#{ LOCALIZABLE_ASSETS_EXT * '|' })")
     LOCALIZABLE_COMPILABLE_ASSETS_REGEX = Regexp.new("\\.(?:#{ LOCALIZABLE_ASSETS_EXT * '|' })\\..+$")
+    GLOBAL_ASSET_REGEX = /^(https?)?:\/\//
 
     module Helpers
       module RailsHelper
@@ -117,7 +118,7 @@ unless defined?(Sprockets::LOCALIZABLE_ASSETS_REGEX)
       alias_method :compute_public_path_without_locale, :compute_public_path
 
       def compute_public_path(source, dir, options = nil)
-        source = prepend_locale(source) if file_localizable?(source, options) && !file_already_localized?(source)
+        source = prepend_locale(source) if local_resource?(source) && file_localizable?(source, options) && !file_already_localized?(source)
         compute_public_path_without_locale(source, dir, options)
       end
 
@@ -125,6 +126,10 @@ unless defined?(Sprockets::LOCALIZABLE_ASSETS_REGEX)
 
         def prepend_locale(source)
           "#{ I18n.locale }/#{ source }"
+        end
+
+        def local_resource?(source)
+          source !~ Sprockets::GLOBAL_ASSET_REGEX
         end
 
         def file_localizable?(source, options)
