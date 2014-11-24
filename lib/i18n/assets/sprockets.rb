@@ -2,82 +2,68 @@ unless defined?(Sprockets::LOCALIZABLE_ASSETS_REGEX)
   require 'sprockets'
 
   module Sprockets
+
     LOCALIZABLE_ASSETS_EXT = %w( js css )
     LOCALIZABLE_ASSETS_REGEX = Regexp.new("\\.(?:#{ LOCALIZABLE_ASSETS_EXT * '|' })")
     LOCALIZABLE_COMPILABLE_ASSETS_REGEX = Regexp.new("\\.(?:#{ LOCALIZABLE_ASSETS_EXT * '|' })\\..+$")
     GLOBAL_ASSET_REGEX = /^(https?)?:\/\//
 
-    module Helpers
-      module RailsHelper
+    class Manifest
 
-        alias_method :asset_path_without_locale, :asset_path
-
-        # prevent asset from caching by adding timestamp
-        def asset_path(source, options = {})
-          path = asset_path_without_locale(source, options)
-
-          if !digest_assets? && path =~ LOCALIZABLE_ASSETS_REGEX
-            separator = path =~ /\?/ ? '&' : '?'
-            "#{ path }#{ separator }t=#{ Time.now.to_i }"
-          else
-            path
-          end
+      def compile(*args)
+        unless environment
+          raise Error, "manifest requires environment for compilation"
         end
 
-        alias_method :path_to_asset, :asset_path
+        paths = environment.each_logical_path(*args).to_a +
+          args.flatten.select { |fn| Pathname.new(fn).absolute? if fn.is_a?(String)}
 
-      end
-    end
+        paths.each do |path|
+          I18n.available_locales.each do |locale|
+            I18n.locale = locale
 
-    class StaticCompiler
+            if asset = find_asset(path)
+              files[asset.digest_path] = {
+                'logical_path' => asset.logical_path,
+                'mtime'        => asset.mtime.iso8601,
+                'size'         => asset.bytesize,
+                'digest'       => asset.digest
+              }
+              assets[asset.logical_path] = asset.digest_path
 
-      def compile
-        manifest = {}
-        env.each_logical_path(paths) do |logical_path|
-          process = lambda do
-            if asset = env.find_asset(logical_path)
-              digest_path = write_asset(asset)
-              manifest[asset.logical_path] = digest_path
-              manifest[aliased_path_for(asset.logical_path)] = digest_path
+              target = if asset.digest_path.start_with?("#{ I18n.locale.to_s }/")
+                File.join(dir, asset.digest_path)
+              else
+                File.join(dir, I18n.locale.to_s, asset.digest_path)
+              end
+
+              if File.exist?(target)
+                logger.debug "Skipping #{target}, already exists"
+              else
+                logger.info "Writing #{target}"
+                asset.write_to target
+                asset.write_to "#{target}.gz" if asset.is_a?(BundledAsset)
+              end
+
             end
-          end
-
-          if logical_path =~ LOCALIZABLE_ASSETS_REGEX
-            I18n.available_locales.each do |locale|
-              I18n.locale = locale
-              process.call
-            end
-          else
-            process.call
           end
         end
 
         I18n.locale = I18n.default_locale
 
-        write_manifest(manifest) if @manifest
+        save
+        paths
       end
 
     end
 
     class Asset
 
-      alias_method :logical_path_without_locale, :logical_path
-
-      # add locale for css and js files
-      def logical_path
-        path = logical_path_without_locale
-        if !Rails.env.development? && path =~ LOCALIZABLE_ASSETS_REGEX
-          "#{ I18n.locale }/#{ path }"
-        else
-          path
-        end
-      end
-
       protected
 
         alias_method :dependency_fresh_without_check?, :dependency_fresh?
         def dependency_fresh?(environment, dep)
-          return false if Rails.configuration.assets.prevent_caching && dep.pathname.to_s =~ LOCALIZABLE_COMPILABLE_ASSETS_REGEX
+          return false if ::Rails.configuration.assets.prevent_caching && dep.pathname.to_s =~ LOCALIZABLE_COMPILABLE_ASSETS_REGEX
           dependency_fresh_without_check?(environment, dep)
         end
 
@@ -87,9 +73,7 @@ unless defined?(Sprockets::LOCALIZABLE_ASSETS_REGEX)
 
       # set locale for asset request
       def call(env)
-        locale = extract_locale(env['PATH_INFO'])
-        env['PATH_INFO'].gsub!(Regexp.new("^/#{ locale }"), '') if locale
-        I18n.locale = Rack::Request.new(env).params['locale'] || locale || I18n.default_locale
+        I18n.locale = Rack::Request.new(env).params['locale'] || I18n.default_locale
         super
       end
 
@@ -98,48 +82,53 @@ unless defined?(Sprockets::LOCALIZABLE_ASSETS_REGEX)
         "#{path}:#{I18n.locale}:#{options[:bundle] ? '1' : '0'}"
       end
 
-      private
-
-        def extract_locale(path)
-          locale = path[/^\/([a-z\-_]+?)\//, 1]
-          if I18n.available_locales.map(&:to_s).include? locale
-            locale
-          else
-            nil
-          end
-        end
-
     end
 
   end
 
   module ActionView
-    class AssetPaths
-      alias_method :compute_public_path_without_locale, :compute_public_path
+    module Helpers
+      module AssetUrlHelper
 
-      def compute_public_path(source, dir, options = nil)
-        source = prepend_locale(source) if local_resource?(source) && file_localizable?(source, options) && !file_already_localized?(source)
-        compute_public_path_without_locale(source, dir, options)
+        alias_method :asset_path_without_locale, :asset_path
+
+        # prevent asset from caching by adding timestamp
+        def asset_path(source, options = {})
+          source = source.to_s
+          return "" unless source.present?
+          return source if source =~ URI_REGEXP
+
+          tail, source = source[/([\?#].+)$/], source.sub(/([\?#].+)$/, '')
+
+          if extname = compute_asset_extname(source, options)
+            source = "#{source}#{extname}"
+          end
+
+          if source[0] != ?/
+            source = compute_asset_path(source, options)
+          end
+
+          relative_url_root = defined?(config.relative_url_root) && config.relative_url_root
+          if relative_url_root
+            source = File.join(relative_url_root, source) unless source.starts_with?("#{relative_url_root}/")
+          end
+
+          if host = compute_asset_host(source, options)
+            source = File.join(host, source)
+          end
+
+          tail ||= ''
+
+          if !digest_assets? && !tail.include?('locale') && source =~ Sprockets::LOCALIZABLE_ASSETS_REGEX
+            separator = source.include?('?') || tail.include?('?') ? '&' : '?'
+            tail = "#{ tail }#{ separator }t=#{ Time.now.to_i }&locale=#{ I18n.locale }"
+          end
+
+          "#{source}#{tail}".html_safe
+        end
+        alias_method :path_to_asset, :asset_path
+
       end
-
-      private
-
-        def prepend_locale(source)
-          "#{ I18n.locale }/#{ source }"
-        end
-
-        def local_resource?(source)
-          source !~ Sprockets::GLOBAL_ASSET_REGEX
-        end
-
-        def file_localizable?(source, options)
-          source =~ Sprockets::LOCALIZABLE_ASSETS_REGEX || Sprockets::LOCALIZABLE_ASSETS_EXT.include?(options.try(:[], :ext))
-        end
-
-        def file_already_localized?(source)
-          source.starts_with?("#{ I18n.locale }/")
-        end
-
     end
   end
 end
