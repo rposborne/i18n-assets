@@ -3,7 +3,7 @@ unless defined?(Sprockets::LOCALIZABLE_ASSETS_REGEX)
 
   module Sprockets
 
-    LOCALIZABLE_ASSETS_EXT = %w( js css )
+    LOCALIZABLE_ASSETS_EXT = %w( html )
     LOCALIZABLE_ASSETS_REGEX = Regexp.new("\\.(?:#{ LOCALIZABLE_ASSETS_EXT * '|' })")
     LOCALIZABLE_COMPILABLE_ASSETS_REGEX = Regexp.new("\\.(?:#{ LOCALIZABLE_ASSETS_EXT * '|' })\\..+$")
     GLOBAL_ASSET_REGEX = /^(https?)?:\/\//
